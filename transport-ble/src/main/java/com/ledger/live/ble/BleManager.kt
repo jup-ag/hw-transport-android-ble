@@ -128,7 +128,7 @@ class BleManager internal constructor(
         val device = result.device
         val rssi = result.rssi
         val uuids = getServiceUUIDsList(result)
-        val name = device.name
+        val name = result.scanRecord?.deviceName ?: device.name
         val serviceId = uuids.first().toString()
 
         return if (name != null && uuids.isNotEmpty()) {
