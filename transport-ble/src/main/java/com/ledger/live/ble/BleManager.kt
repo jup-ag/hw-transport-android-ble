@@ -156,10 +156,12 @@ class BleManager internal constructor(
     /**
      * Use bleState for getting informations about running scan
      */
+    @Synchronized
     fun startScanning(): Boolean {
         return internalStartScanning()
     }
 
+    @Synchronized
     fun startScanning(
         onScanDevices: (List<BleDeviceModel>) -> Unit
     ): Boolean {
@@ -168,6 +170,7 @@ class BleManager internal constructor(
         return internalStartScanning()
     }
 
+    @Synchronized
     fun clearQueue() {
         Timber.d("Clearing pending request queue.")
         synchronized(pendingSendRequest) {
@@ -242,6 +245,7 @@ class BleManager internal constructor(
         return true
     }
 
+    @Synchronized
     fun stopScanning() {
         Timber.d("Stop Scanning")
         pollingJob?.cancel()
@@ -304,8 +308,7 @@ class BleManager internal constructor(
         callback: BleManagerConnectionCallback? = null,
     ) {
         Timber.d("($this) - Try Connecting to device with address $address")
-        stopScanning()
-        internalDisconnect()
+        cleanupConnection()
 
         connectionCallback = callback
 
@@ -363,17 +366,7 @@ class BleManager internal constructor(
     fun disconnect() {
         Timber.d("Called disconnect")
 
-        if (disconnectingJob == null
-            || disconnectingJob?.isCancelled == true
-            || disconnectingJob?.isCompleted == true
-        ) {
-            disconnectingJob = scope.launch {
-                internalDisconnect()
-            }
-        }
-
-        pendingSendRequest.firstOrNull()?.onError?.invoke("Device disconnected")
-        clearQueue()
+        cleanupConnection()
     }
 
     private var disconnectingDeferred: CompletableDeferred<Boolean>? = null
@@ -400,6 +393,7 @@ class BleManager internal constructor(
         }
     }
 
+    @Synchronized
     fun send(
         apduHex: String,
     ) {
@@ -409,6 +403,7 @@ class BleManager internal constructor(
     }
 
     private val pendingSendRequest = mutableListOf<BleManagerSendCallback>()
+    @Synchronized
     fun send(
         apduHex: String,
         onSuccess: (String) -> Unit,
@@ -429,6 +424,9 @@ class BleManager internal constructor(
 
     // Bluetooth Service lifecycle.
     private var bluetoothService: BleService? = null
+    private var serviceJob: Job? = null
+    private var serviceBound: Boolean = false
+
     private lateinit var connectedDevice: BleDeviceModel
     var isConnected: Boolean = false
         private set
@@ -437,14 +435,17 @@ class BleManager internal constructor(
         override fun onServiceConnected(componentName: ComponentName, service: IBinder) {
             Timber.d("Connected to BleService !")
             bluetoothService = (service as BleService.LocalBinder).getService()
+            serviceBound = true
+
             bluetoothService?.let { bleService ->
                 if (!bleService.initialize()) {
                     Timber.e("Unable to initialize Bluetooth")
                     connectionCallback?.onConnectionError(BleError.INITIALIZING_FAILED)
                     bleService.disconnectService(BleServiceEvent.BleDeviceDisconnected(BleError.INITIALIZING_FAILED))
                 } else {
+                    serviceJob?.cancel()
                     bleService.connect(connectedDevice.id)
-                    scope.launch {
+                    serviceJob = scope.launch {
                         bleService.listenEvents().collect { event ->
                             when (event) {
                                 is BleServiceEvent.BleDeviceConnected -> {
@@ -490,7 +491,47 @@ class BleManager internal constructor(
 
         override fun onServiceDisconnected(componentName: ComponentName) {
             Timber.d("BleService disconnected unexpectedly")
+            cleanupConnection(BleError.UNKNOWN)
         }
+    }
+
+    @Synchronized
+    private fun cleanupConnection(error: BleError? = null) {
+        if (!serviceBound && bluetoothService == null && !isConnected && !isScanning) {
+            return
+        }
+        Timber.d("Cleaning up BLE connection. Error: $error")
+
+        stopScanning()
+
+        serviceJob?.cancel()
+        serviceJob = null
+
+        if (serviceBound) {
+            try {
+                context.unbindService(serviceConnection)
+            } catch (e: Exception) {
+                Timber.w(e, "Error unbinding service.")
+            }
+        }
+
+        bluetoothService = null
+        serviceBound = false
+        isConnected = false
+
+        if (error != null) {
+            connectionCallback?.onConnectionError(error)
+            _bleEvents.tryEmit(BleEvent.Error.ConnectionError(error))
+        } else {
+            disconnectionCallback?.onDisconnectionSuccess()
+        }
+
+        connectionCallback = null
+        disconnectionCallback = null
+        pendingSendRequest.forEach { it.onError("Device disconnected") }
+        clearQueue()
+
+        _bleState.tryEmit(BleState.Disconnected(error))
     }
 
     private var tmpError: BleError? = null
