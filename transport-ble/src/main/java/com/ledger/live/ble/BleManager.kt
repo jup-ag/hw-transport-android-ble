@@ -168,6 +168,13 @@ class BleManager internal constructor(
         return internalStartScanning()
     }
 
+    fun clearQueue() {
+        Timber.d("Clearing pending request queue.")
+        synchronized(pendingSendRequest) {
+            pendingSendRequest.clear()
+        }
+    }
+
     /**
      * Start a new scanning session
      *
@@ -364,6 +371,9 @@ class BleManager internal constructor(
                 internalDisconnect()
             }
         }
+
+        pendingSendRequest.firstOrNull()?.onError?.invoke("Device disconnected")
+        clearQueue()
     }
 
     private var disconnectingDeferred: CompletableDeferred<Boolean>? = null
