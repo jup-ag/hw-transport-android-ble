@@ -436,7 +436,7 @@ class BleManager internal constructor(
     private val serviceConnection: ServiceConnection = object : ServiceConnection {
         override fun onServiceConnected(componentName: ComponentName, service: IBinder) {
             Timber.d("Connected to BleService !")
-            bluetoothService = (service as BleService.LocalBinder).service
+            bluetoothService = (service as BleService.LocalBinder).getService()
             bluetoothService?.let { bleService ->
                 if (!bleService.initialize()) {
                     Timber.e("Unable to initialize Bluetooth")
