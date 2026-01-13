@@ -585,6 +585,8 @@ class BleManager internal constructor(
     fun isBleSupported(): Boolean = context.packageManager.run { hasSystemFeature(PackageManager.FEATURE_BLUETOOTH_LE) }
 
     companion object {
+        // IDs based on https://github.com/LedgerHQ/ledger-live/blob/develop/libs/ledgerjs/packages/devices/src/index.ts
+
         private const val SCAN_MATCH_TTL = 5000L
         private const val SCAN_THROTTLE_MS = 1000L
 
