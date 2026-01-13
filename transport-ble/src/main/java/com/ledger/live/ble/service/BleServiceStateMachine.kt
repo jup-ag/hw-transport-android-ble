@@ -262,6 +262,7 @@ class BleServiceStateMachine(
             if (service.uuid == BleManager.NANO_X_SERVICE_UUID.toUUID()
                 || service.uuid == BleManager.STAX_SERVICE_UUID.toUUID()
                 || service.uuid == BleManager.FLEX_SERVICE_UUID.toUUID()
+                || service.uuid == BleManager.APEX_SERVICE_UUID.toUUID()
             ) {
                 Timber.d("Service UUID ${service.uuid}")
 
@@ -271,17 +272,20 @@ class BleServiceStateMachine(
                     when (characteristic.uuid) {
                         BleManager.nanoXWriteWithResponseCharacteristicUUID.toUUID(),
                         BleManager.staxWriteWithResponseCharacteristicUUID.toUUID(),
-                        BleManager.flexWriteWithResponseCharacteristicUUID.toUUID() -> {
+                        BleManager.flexWriteWithResponseCharacteristicUUID.toUUID(),
+                        BleManager.apexWriteWithResponseCharacteristicUUID.toUUID() -> {
                             bleServiceBuilder.setWriteCharacteristic(characteristic)
                         }
                         BleManager.nanoXWriteWithoutResponseCharacteristicUUID.toUUID(),
                         BleManager.staxWriteWithoutResponseCharacteristicUUID.toUUID(),
-                        BleManager.flexWriteWithoutResponseCharacteristicUUID.toUUID() -> {
+                        BleManager.flexWriteWithoutResponseCharacteristicUUID.toUUID(),
+                        BleManager.apexWriteWithoutResponseCharacteristicUUID.toUUID() -> {
                             bleServiceBuilder.setWriteNoAnswerCharacteristic(characteristic)
                         }
                         BleManager.nanoXNotifyCharacteristicUUID.toUUID(),
                         BleManager.staxNotifyCharacteristicUUID.toUUID(),
-                        BleManager.flexNotifyCharacteristicUUID.toUUID()-> {
+                        BleManager.flexNotifyCharacteristicUUID.toUUID(),
+                        BleManager.apexNotifyCharacteristicUUID.toUUID() -> {
                             bleServiceBuilder.setNotifyCharacteristic(characteristic)
                         }
                     }
